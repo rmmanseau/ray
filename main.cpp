@@ -4,22 +4,23 @@
 #include <iostream>
 #include <cmath>
 
-struct vec2d
+template <class T>
+struct vec2
 {
-    double x;
-    double y;
+  T x;
+  T y;
 
-    vec2d(double _x, double _y) : x(_x), y(_y) {}
-    vec2d() : x(0), y(0) {}
+  vec2(T _x, T _y) : x(_x), y(_y) {}
+  vec2() : x(0), y(0) {}
 };
 
-struct vec2i
-{
-    int x;
-    int y;
+typedef vec2<double> vec2d;
+typedef vec2<int> vec2i;
 
-    vec2i(int _x, int _y) : x(_x), y(_y) {}
-    vec2i() : x(0), y(0) {}
+struct Player {
+    vec2d pos;
+    vec2d dir;
+    vec2d camPlane;
 };
 
 template <typename T>
@@ -27,159 +28,184 @@ T sqr(T x) {
     return x*x;
 }
 
-void rotate(vec2d &vec, double rotateSpeed)
+template <typename T>
+void rotate(vec2<T> &vec, double rotateSpeed)
 {
     double oldX = vec.x;
     vec.x = oldX * cos(rotateSpeed) - vec.y * sin(rotateSpeed);
     vec.y = oldX * sin(rotateSpeed) + vec.y * cos(rotateSpeed);
 }
 
+
+void playerInput(Player &player) {
+    double moveSpeed = 0.01;
+    double rotateSpeed = 0.005;
+
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
+        moveSpeed = 0.03;
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
+        player.pos.x += player.dir.x * moveSpeed;
+        player.pos.y += player.dir.y * moveSpeed;
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
+        player.pos.x -= player.dir.x * moveSpeed;
+        player.pos.y -= player.dir.y * moveSpeed;
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) &&
+        sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
+        player.pos.x += player.dir.y * moveSpeed;
+        player.pos.y -= player.dir.x * moveSpeed;
+    }
+    else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
+        rotate(player.dir, -rotateSpeed);
+        rotate(player.camPlane, -rotateSpeed);
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) &&
+        sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
+        player.pos.x -= player.dir.y * moveSpeed;
+        player.pos.y += player.dir.x * moveSpeed;
+    }
+    else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
+        rotate(player.dir, rotateSpeed);
+        rotate(player.camPlane, rotateSpeed);
+    }
+}
+
+double castRay(vec2d rayPos, vec2d rayDir, int map[][20], double &finalDist, int side) {
+    vec2i mapPos((int)rayPos.x, (int)rayPos.y);
+
+    vec2d delta((double)sqrt(1 + sqr(rayDir.y) / sqr(rayDir.x)),
+                (double)sqrt(1 + sqr(rayDir.x) / sqr(rayDir.y)));
+
+    vec2d nextSide;
+    vec2d step;
+
+    int hit = 0;
+
+    // find step direction and initial nextSide.
+    if (rayDir.x < 0) {
+        step.x = -1;
+        nextSide.x = (rayPos.x - mapPos.x) * delta.x;
+    }
+    else {
+        step.x = 1;
+        nextSide.x = (mapPos.x + 1 - rayPos.x) * delta.x;
+    }
+    if (rayDir.y < 0) {
+        step.y = -1;
+        nextSide.y = (rayPos.y - mapPos.y) * delta.y;
+    }
+    else {
+        step.y = 1;
+        nextSide.y = (mapPos.y + 1 - rayPos.y) * delta.y;
+    }
+
+    while (hit == 0) {
+        if (nextSide.x < nextSide.y) {
+            nextSide.x += delta.x;
+            mapPos.x += step.x;
+            side = 0;
+        }
+        else
+        {
+            nextSide.y += delta.y;
+            mapPos.y += step.y;
+            side = 1;
+        }
+        
+        hit = map[mapPos.x][mapPos.y];
+    }
+
+    if (side == 0)
+        finalDist = std::abs((mapPos.x - rayPos.x + (1 - step.x) / 2.0) / rayDir.x);
+    else
+        finalDist = std::abs((mapPos.y - rayPos.y + (1 - step.y) / 2.0) / rayDir.y);
+}
+
+void drawColumn(sf::RenderWindow &window, int winH, double distance, int side, int column) {
+    int height = std::abs(winH / distance);
+
+    sf::RectangleShape bar;
+    bar.setSize(sf::Vector2f(1, height));
+    bar.setPosition(sf::Vector2f(column, winH/2 - height/2));
+
+    int color = 500 / distance;
+    if (color > 200) {
+        color = 200;
+    }
+    if (side = 1) {
+        color * 0.8;
+    }
+
+    bar.setFillColor(sf::Color(color, color, color));
+
+    window.draw(bar);
+}
+
+void castRays(sf::RenderWindow &window, int winL, int winH, Player player, int map[][20]) {
+    
+    for (int col = 0; col < winL; ++col) {
+        double camColumn = 2*col / double(winL) - 1;
+        
+        vec2d rayPos = player.pos;
+        vec2d rayDir(player.dir.x + player.camPlane.x * camColumn,
+                     player.dir.y + player.camPlane.y * camColumn);
+
+        double distance;
+        double side;
+        
+        castRay(rayPos, rayDir, map, distance, side);
+        drawColumn(window, winH, distance, side, col);
+    }
+}
+
+
 int main()
 {
-    const int win_length = 800;
-    const int win_height = 600;
-    sf::RenderWindow window(sf::VideoMode(win_length, win_height, 32),
+    const int winL = 800;
+    const int winH = 600;
+    sf::RenderWindow window(sf::VideoMode(winL, winH, 32),
                             "SFML Raycasting!", 
                             sf::Style::Close);
 
-    int world[10][10] =
+    int map[20][20] =
     {
-      {1,1,1,1,1,1,1,1,1,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,0,1,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,1},
-      {1,1,1,1,1,1,1,1,1,1},
+      {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
+      {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+      {1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1},
+      {1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1},
+      {1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1},
+      {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
+      {1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
     };
 
-    vec2d pos(8, 8);
-    vec2d dir(-1, 0);
-    vec2d plane(0, 0.66);
-
-    double curTime = 0;
-    double oldTime = 0;
+    Player player;
+    player.pos = vec2d(10, 10);
+    player.dir = vec2d(-1, 0);
+    player.camPlane = vec2d(0, 0.66);
 
     for(;;)
-    {
-        double cameraX;
-        vec2d rayPos;
-        vec2d rayDir;
+    {   
+        playerInput(player);
 
-        window.clear(sf::Color::Black);
+        window.clear(sf::Color(20, 20, 20));
 
-        double moveSpeed = 0.01;
-        double rotateSpeed = 0.005;
-
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-        {
-            pos.x += dir.x * moveSpeed;
-            pos.y += dir.y * moveSpeed;
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-        {
-            pos.x -= dir.x * moveSpeed;
-            pos.y -= dir.y * moveSpeed;
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
-        {
-            rotate(dir, -rotateSpeed);
-            rotate(plane, -rotateSpeed);
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
-        {
-            rotate(dir, rotateSpeed);
-            rotate(plane, rotateSpeed);
-        }
-
-        for(int x = 0; x < win_length; ++x)
-        {
-            cameraX = 2*x / (2.0*win_length) - 1;
-            rayPos = pos;
-            rayDir.x = dir.x + plane.x * cameraX;
-            rayDir.y = dir.y + plane.y * cameraX;
-
-            //which box of map we are in
-            vec2i map((int)rayPos.x, (int)rayPos.y);
-
-            //length of ray from current pos to next x or y side
-            vec2d sideDist;
-
-            //length of ray from one x or y side to next
-            vec2d deltaDist;
-            deltaDist.x = (double)sqrt(1 + sqr(rayDir.y) / sqr(rayDir.x));
-            deltaDist.y = (double)sqrt(1 + sqr(rayDir.x) / sqr(rayDir.y));
-            double perpWallDist;
-
-            //what direction to step in x or y (+1 or -1);
-            vec2i step;
-
-            int hit = 0; //was a wall hit?
-            int side; //was a NS or a EW wall hit?
-
-            //calculate step and initial sideDist
-            if (rayDir.x < 0) {
-                step.x = -1;
-                sideDist.x = (rayPos.x - map.x) * deltaDist.x;
-            }
-            else {
-                step.x = 1;
-                sideDist.x = (map.x + 1.0 - rayPos.x) * deltaDist.x;
-            }
-            if (rayDir.y < 0) {
-                step.y = -1;
-                sideDist.y = (rayPos.y - map.y) * deltaDist.y;
-            }
-            else {
-                step.y = 1;
-                sideDist.y = (map.y + 1.0 - rayPos.y) * deltaDist.y;
-            }
-
-            //perform DDA
-            while (hit == 0)
-            {
-                //jump to next map sqaure
-                if (sideDist.x < sideDist.y)
-                {
-                    sideDist.x += deltaDist.x;
-                    map.x += step.x;
-                    side = 0;
-                }
-                else
-                {
-                    sideDist.y += deltaDist.y;
-                    map.y += step.y;
-                    side = 1;
-                }
-                if (world[map.x][map.y] > 0)
-                    hit = 1;
-            }
-
-            if (side == 0)
-                perpWallDist = std::abs((map.x - rayPos.x + (1 - step.x) / 2.0) / rayDir.x);
-            else
-                perpWallDist = std::abs((map.y - rayPos.y + (1 - step.y) / 2.0) / rayDir.y);
-
-            std::cout << "X: d: " << dir.x << " p: " << plane.x << std::endl;
-            std::cout << "Y: d: " << dir.y << " p: " << plane.y << std::endl;
-
-            int lineHeight = abs((win_height / perpWallDist));
-
-            sf::RectangleShape line;
-            line.setSize(sf::Vector2f(1, lineHeight));
-            line.setPosition(sf::Vector2f(x, (-lineHeight/2.0) + (win_height/2.0)));
-
-            if (side == 1)
-                line.setFillColor(sf::Color(200, 0, 0));
-            else
-                line.setFillColor(sf::Color(255, 0, 0));
-
-            window.draw(line);
-        }
-
+        castRays(window, winL, winH, player, map);
+        
         window.display();
     }
 }
