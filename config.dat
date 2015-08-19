@@ -8,7 +8,7 @@
   StartY:          10
   StartDir:        1
   StartPlane:      0.88
-  MaxBrightness:   75
-  RenderDistance:  20
+  MaxBrightness:   90
+  RenderDistance:  50
   ShadowSide:      0
   ShadowDarkness:  0.7
