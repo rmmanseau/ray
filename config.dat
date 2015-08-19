@@ -1,0 +1,14 @@
+  Variable        Value
+  ---------------------
+  ColWidth:        1
+  WalkSpeed:       0.02
+  RunSpeed:        0.05
+  RotSpeed:        0.016
+  StartX:          15
+  StartY:          10
+  StartDir:        1
+  StartPlane:      0.88
+  MaxBrightness:   75
+  RenderDistance:  20
+  ShadowSide:      0
+  ShadowDarkness:  0.7

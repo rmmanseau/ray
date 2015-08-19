@@ -1,8 +1,33 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
-#include <vector>
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
 #include <cmath>
+
+namespace C {
+    int winL = 960;
+    int winH = 540;
+
+    int columnWidth = 1;
+
+    double walkSpeed = 0.02;
+    double runSpeed = 0.05;
+    double rotateSpeed = 0.016;
+
+    double startX = 15;
+    double startY = 10;
+
+    double startDir = 1;
+    double startPlane = 0.88;
+    
+    int maxBrightness = 75; // Out of 255
+    int renderDistance = 20;
+
+    int shadowSide = 0;
+    double shadowDarkness = 0.7;
+};
 
 template <class T>
 struct vec2
@@ -36,13 +61,62 @@ void rotate(vec2<T> &vec, double rotateSpeed)
     vec.y = oldX * sin(rotateSpeed) + vec.y * cos(rotateSpeed);
 }
 
+void initPlayer(Player &player) {
+    player.pos = vec2d(C::startX, C::startY);
+    player.dir = vec2d(-C::startDir, 0);
+    player.camPlane = vec2d(0, C::startPlane);
+}
+
+void importVariables()
+{
+    std::ifstream varFile;
+    varFile.open("config.dat");
+    
+    std::string tmp;
+
+    std::vector<double> vars;
+
+    while (getline(varFile, tmp, ':'))
+    {
+        double currentVar;
+
+        varFile >> currentVar;
+        vars.push_back(currentVar);
+    }
+
+    varFile.close();
+
+    C::columnWidth = vars[0];
+
+    C::walkSpeed = vars[1];
+    C::runSpeed = vars[2];
+    C::rotateSpeed = vars[3];
+
+    C::startX = vars[4];
+    C::startY = vars[5];
+
+    C::startDir = vars[6];
+    C::startPlane = vars[7];
+
+    C::maxBrightness = vars[8];
+    C::renderDistance = vars[9];
+
+    C::shadowSide = vars[10];
+    C::shadowDarkness = vars[11];
+}
 
 void playerInput(Player &player) {
-    double moveSpeed = 0.01;
-    double rotateSpeed = 0.005;
+    double moveSpeed = C::walkSpeed;
+    double rotateSpeed = C::rotateSpeed;
 
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) {
+        importVariables();
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) {
+        initPlayer(player);
+    }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
-        moveSpeed = 0.03;
+        moveSpeed = C::runSpeed;
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
         player.pos.x += player.dir.x * moveSpeed;
@@ -72,7 +146,7 @@ void playerInput(Player &player) {
     }
 }
 
-double castRay(vec2d rayPos, vec2d rayDir, int map[][20], double &finalDist, int side) {
+double castRay(vec2d rayPos, vec2d rayDir, int map[][20], double &finalDist, int &side) {
     vec2i mapPos((int)rayPos.x, (int)rayPos.y);
 
     vec2d delta((double)sqrt(1 + sqr(rayDir.y) / sqr(rayDir.x)),
@@ -117,25 +191,27 @@ double castRay(vec2d rayPos, vec2d rayDir, int map[][20], double &finalDist, int
         hit = map[mapPos.x][mapPos.y];
     }
 
-    if (side == 0)
+    if (side == 0) {
         finalDist = std::abs((mapPos.x - rayPos.x + (1 - step.x) / 2.0) / rayDir.x);
-    else
+    }
+    else {
         finalDist = std::abs((mapPos.y - rayPos.y + (1 - step.y) / 2.0) / rayDir.y);
+    }
 }
 
-void drawColumn(sf::RenderWindow &window, int winH, double distance, int side, int column) {
-    int height = std::abs(winH / distance);
+void drawColumn(sf::RenderWindow &window, double distance, int side, int column) {
+    int height = std::abs(C::winH / distance);
 
     sf::RectangleShape bar;
-    bar.setSize(sf::Vector2f(1, height));
-    bar.setPosition(sf::Vector2f(column, winH/2 - height/2));
+    bar.setSize(sf::Vector2f(C::columnWidth, height));
+    bar.setPosition(sf::Vector2f(column, C::winH/2 - height/2));
 
-    int color = 500 / distance;
-    if (color > 200) {
-        color = 200;
+    int color = C::maxBrightness * C::renderDistance / sqr(distance);
+    if (color > C::maxBrightness) {
+        color = C::maxBrightness;
     }
-    if (side = 1) {
-        color * 0.8;
+    if (side == C::shadowSide) {
+        color *= C::shadowDarkness;
     }
 
     bar.setFillColor(sf::Color(color, color, color));
@@ -143,29 +219,27 @@ void drawColumn(sf::RenderWindow &window, int winH, double distance, int side, i
     window.draw(bar);
 }
 
-void castRays(sf::RenderWindow &window, int winL, int winH, Player player, int map[][20]) {
+void castRays(sf::RenderWindow &window, Player player, int map[][20]) {
     
-    for (int col = 0; col < winL; ++col) {
-        double camColumn = 2*col / double(winL) - 1;
+    for (int col = 0; col < C::winL; col += C::columnWidth) {
+        double camColumn = 2*col / double(C::winL) - 1;
         
         vec2d rayPos = player.pos;
         vec2d rayDir(player.dir.x + player.camPlane.x * camColumn,
                      player.dir.y + player.camPlane.y * camColumn);
 
         double distance;
-        double side;
+        int side;
         
         castRay(rayPos, rayDir, map, distance, side);
-        drawColumn(window, winH, distance, side, col);
+        drawColumn(window, distance, side, col);
     }
 }
 
 
 int main()
 {
-    const int winL = 800;
-    const int winH = 600;
-    sf::RenderWindow window(sf::VideoMode(winL, winH, 32),
+    sf::RenderWindow window(sf::VideoMode(C::winL, C::winH, 32),
                             "SFML Raycasting!", 
                             sf::Style::Close);
 
@@ -176,16 +250,16 @@ int main()
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
       {1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
       {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
-      {1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1},
-      {1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,1,0,0,0,0,1,0,0,0,0,0,0,1},
+      {1,0,0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-      {1,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0,1},
-      {1,0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,0,0,0,1},
       {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
       {1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
       {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
@@ -193,18 +267,17 @@ int main()
       {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
     };
 
+
     Player player;
-    player.pos = vec2d(10, 10);
-    player.dir = vec2d(-1, 0);
-    player.camPlane = vec2d(0, 0.66);
+    initPlayer(player);
 
     for(;;)
     {   
         playerInput(player);
 
-        window.clear(sf::Color(20, 20, 20));
+        window.clear(sf::Color(0, 0, 0));
 
-        castRays(window, winL, winH, player, map);
+        castRays(window, player, map);
         
         window.display();
     }
