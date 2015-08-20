@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <sstream>
 #include <vector>
 #include <cmath>
 
@@ -17,6 +18,11 @@
     960x720
 */
 
+std::vector<std::string> worlds;
+std::string world;
+int worldL;
+int worldH;
+
 namespace C {
     int winL = 960;
     int winH = 540;
@@ -27,8 +33,8 @@ namespace C {
     double runSpeed = 0.05;
     double rotateSpeed = 0.016;
 
-    double startX = 15;
-    double startY = 10;
+    double startX = 1.5;
+    double startY = 1.5;
 
     double startDir = 1;
     double startPlane = 0.88;
@@ -38,6 +44,8 @@ namespace C {
 
     int shadowSide = 0;
     double shadowDarkness = 0.7;
+
+    int selectedWorld = 0;
 };
 
 template <class T>
@@ -64,17 +72,22 @@ T sqr(T x) {
     return x*x;
 }
 
-template <typename T>
-void rotate(vec2<T> &vec, double rotateSpeed)
-{
-    double oldX = vec.x;
-    vec.x = oldX * cos(rotateSpeed) - vec.y * sin(rotateSpeed);
-    vec.y = oldX * sin(rotateSpeed) + vec.y * cos(rotateSpeed);
+void findWorldDimensions() {
+    worldL = 1;
+    for (int i = 0; world[i] != '\n'; i++) {
+        worldL++;
+    }
+    
+    worldH = world.length() / worldL;
+}
+
+char charAt(int x, int y) {
+    return world[y * worldL + x];
 }
 
 void initPlayer(Player &player) {
     player.pos = vec2d(C::startX, C::startY);
-    player.dir = vec2d(-C::startDir, 0);
+    player.dir = vec2d(C::startDir, 0);
     player.camPlane = vec2d(0, C::startPlane);
 }
 
@@ -114,6 +127,92 @@ void importVariables()
 
     C::shadowSide = vars[10];
     C::shadowDarkness = vars[11];
+
+    C::selectedWorld = vars[12];
+}
+
+void importMaps(std::vector<std::string> &worlds)
+{
+    std::ifstream mapFile;
+
+    char c;
+    char prev;
+
+    mapFile.open("worlds.dat");
+    while (mapFile.get(c))
+    {
+        if (c == '%')
+        {
+            int baseLength = -1;
+            int length = 0;
+            std::stringstream world_in;
+            std::string world;
+
+            mapFile >> std::ws;
+
+            while (mapFile.get(c))
+            {
+                if (c == '%')
+                    break;
+                else {
+                    ++length;
+                    world_in << c;
+                }
+
+                if (c == '\n')
+                {
+                    if (baseLength == -1)
+                    {
+                        baseLength = length;
+                        length = 0;
+                    }
+                    else
+                    {
+                        if (length != baseLength)
+                        {
+                            std::cout << "ERROR: rows are not all the same length";
+                            if (c == '\n' && prev == '\n')
+                                std::cout << " (did you forget \% at the end?)\n";
+                            else
+                                std::cout << '\n';
+                            exit(1);
+                        }
+
+                        length = 0;
+                    }
+                }
+
+                prev = c;
+            }
+
+            world = world_in.str();
+            worlds.push_back(world);
+        }
+    }
+    mapFile.close(); 
+}
+
+void initWorld() {
+    importMaps(worlds);
+    world = worlds[C::selectedWorld];
+    findWorldDimensions();
+}
+
+template <typename T>
+void rotate(vec2<T> &vec, double rotateSpeed)
+{
+    double oldX = vec.x;
+    vec.x = oldX * cos(rotateSpeed) - vec.y * sin(rotateSpeed);
+    vec.y = oldX * sin(rotateSpeed) + vec.y * cos(rotateSpeed);
+}
+
+void move(Player &player, vec2d newPos, vec2d padding) {
+    if (charAt((int)padding.x, (int)player.pos.y) == ' ') {
+        player.pos.x = newPos.x;
+    }
+    if (charAt((int)player.pos.x, (int)padding.y) == ' ') {
+        player.pos.y = newPos.y;
+    }
 }
 
 void playerInput(Player &player) {
@@ -125,39 +224,53 @@ void playerInput(Player &player) {
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) {
         initPlayer(player);
+        initWorld();
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
         moveSpeed = C::runSpeed;
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
-        player.pos.x += player.dir.x * moveSpeed;
-        player.pos.y += player.dir.y * moveSpeed;
+        vec2d newPos(player.pos.x + player.dir.x * moveSpeed,
+                     player.pos.y + player.dir.y * moveSpeed);
+        vec2d padding(newPos.x + (player.dir.x > 0 ? 0.15 : -0.15),
+                      newPos.y + (player.dir.y > 0 ? 0.15 : -0.15));
+
+        move(player, newPos, padding);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
-        player.pos.x -= player.dir.x * moveSpeed;
-        player.pos.y -= player.dir.y * moveSpeed;
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) &&
-        sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
-        player.pos.x += player.dir.y * moveSpeed;
-        player.pos.y -= player.dir.x * moveSpeed;
-    }
-    else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
-        rotate(player.dir, -rotateSpeed);
-        rotate(player.camPlane, -rotateSpeed);
+        vec2d newPos(player.pos.x - player.dir.x * moveSpeed,
+                     player.pos.y - player.dir.y * moveSpeed);
+        vec2d padding(newPos.x - (player.dir.x > 0 ? 0.15 : -0.15),
+                      newPos.y - (player.dir.y > 0 ? 0.15 : -0.15));
+        move(player, newPos, padding);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) &&
         sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
-        player.pos.x -= player.dir.y * moveSpeed;
-        player.pos.y += player.dir.x * moveSpeed;
+        vec2d newPos(player.pos.x + player.dir.y * moveSpeed,
+                     player.pos.y - player.dir.x * moveSpeed);
+        vec2d padding(newPos.x + (player.dir.y > 0 ? 0.15 : -0.15),
+                      newPos.y - (player.dir.x > 0 ? 0.15 : -0.15));
+        move(player, newPos, padding);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
+        rotate(player.dir, -rotateSpeed);
+        rotate(player.camPlane, -rotateSpeed);
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) &&
+        sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
+        vec2d newPos(player.pos.x - player.dir.y * moveSpeed,
+                     player.pos.y + player.dir.x * moveSpeed);
+        vec2d padding(newPos.x - (player.dir.y > 0 ? 0.15 :  -0.15),
+                      newPos.y + (player.dir.x > 0 ? 0.15 :  -0.15));
+        move(player, newPos, padding);
+    }
+    else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
         rotate(player.dir, rotateSpeed);
         rotate(player.camPlane, rotateSpeed);
     }
 }
 
-double castRay(vec2d rayPos, vec2d rayDir, int map[][35], double &finalDist, int &side) {
+double castRay(vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
     vec2i mapPos((int)rayPos.x, (int)rayPos.y);
 
     vec2d delta((double)sqrt(1 + sqr(rayDir.y) / sqr(rayDir.x)),
@@ -198,8 +311,9 @@ double castRay(vec2d rayPos, vec2d rayDir, int map[][35], double &finalDist, int
             mapPos.y += step.y;
             side = 1;
         }
-        
-        hit = map[mapPos.x][mapPos.y];
+        if (charAt(mapPos.x, mapPos.y) != ' ') {
+            hit = 1;
+        }
     }
 
     if (side == 0) {
@@ -225,12 +339,13 @@ void drawColumn(sf::RenderWindow &window, double distance, int side, int column)
         color *= C::shadowDarkness;
     }
 
-    bar.setFillColor(sf::Color(0, color/1.5, color));
+    bar.setFillColor(sf::Color(color, color, color));
+    // bar.setFillColor(sf::Color(0, color/1.5, color));
 
     window.draw(bar);
 }
 
-void castRays(sf::RenderWindow &window, Player player, int map[][35]) {
+void castRays(sf::RenderWindow &window, Player player) {
     
     for (int col = 0; col < C::winL; col += C::columnWidth) {
         double camColumn = 2*col / double(C::winL) - 1;
@@ -242,11 +357,19 @@ void castRays(sf::RenderWindow &window, Player player, int map[][35]) {
         double distance;
         int side;
         
-        castRay(rayPos, rayDir, map, distance, side);
+        castRay(rayPos, rayDir, distance, side);
         drawColumn(window, distance, side, col);
     }
 }
 
+void drawGround(sf::RenderWindow &window) {
+    sf::RectangleShape ground;
+    ground.setSize(sf::Vector2f(C::winL, C::winH/2));
+    ground.setPosition(sf::Vector2f(0, C::winH/2));
+    ground.setFillColor(sf::Color(70, 130, 60));
+
+    window.draw(ground);
+}
 
 int main()
 {
@@ -254,57 +377,17 @@ int main()
                             "SFML Raycasting!", 
                             sf::Style::Close);
 
-    int map[35][35] =
-    {
-      {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1},
-      {1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,1},
-      {1,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,1,1,1,1,1,0,0,1},
-      {1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,0,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,1,1,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,1,1,1,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,1},
-      {1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,1,0,1,1,0,0,0,0,0,0,0,1,0,0,1},
-      {1,1,1,0,0,0,0,1,1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1,1,1,1,1,1,1,1,0,0,1},
-      {1,0,0,0,0,0,1,0,1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1},
-      {1,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0,1,1},
-      {1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
-    };
-
-
+    importVariables();
     Player player;
     initPlayer(player);
+    initWorld();
 
     for(;;)
     {   
         playerInput(player);
-
-        window.clear(sf::Color(0, 0, 0));
-
-        castRays(window, player, map);
-        
+        window.clear(sf::Color(135, 206, 235));
+        drawGround(window);
+        castRays(window, player);
         window.display();
     }
 }
