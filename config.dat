@@ -1,9 +1,9 @@
   Variable        Value
   ---------------------
   ColWidth:        1
-  WalkSpeed:       0.02
-  RunSpeed:        0.05
-  RotSpeed:        0.013
+  WalkSpeed:       3
+  RunSpeed:        8
+  RotSpeed:        1.5
   StartX:          1.5
   StartY:          1.5
   StartDir:        1

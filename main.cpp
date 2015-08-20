@@ -29,9 +29,9 @@ namespace C {
 
     int columnWidth = 1;
 
-    double walkSpeed = 0.02;
-    double runSpeed = 0.05;
-    double rotateSpeed = 0.016;
+    double walkSpeed = 1;
+    double runSpeed = 2;
+    double rotateSpeed = 0.5;
 
     double startX = 1.5;
     double startY = 1.5;
@@ -215,9 +215,9 @@ void move(Player &player, vec2d newPos, vec2d padding) {
     }
 }
 
-void playerInput(Player &player) {
-    double moveSpeed = C::walkSpeed;
-    double rotateSpeed = C::rotateSpeed;
+void playerInput(Player &player, double timeStep) {
+    double moveSpeed = C::walkSpeed * timeStep;
+    double rotateSpeed = C::rotateSpeed * timeStep;
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) {
         importVariables();
@@ -227,7 +227,7 @@ void playerInput(Player &player) {
         initWorld();
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
-        moveSpeed = C::runSpeed;
+        moveSpeed = C::runSpeed * timeStep;
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
         vec2d newPos(player.pos.x + player.dir.x * moveSpeed,
@@ -381,10 +381,13 @@ int main()
     Player player;
     initPlayer(player);
     initWorld();
+    sf::Clock gameClock;
+    double timeStep;
 
     for(;;)
     {   
-        playerInput(player);
+        timeStep = gameClock.restart().asSeconds();
+        playerInput(player, timeStep);
         window.clear(sf::Color(135, 206, 235));
         drawGround(window);
         castRays(window, player);
