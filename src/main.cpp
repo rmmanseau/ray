@@ -95,7 +95,7 @@ void initPlayer(Player &player) {
 void importVariables()
 {
     std::ifstream varFile;
-    varFile.open("config.dat");
+    varFile.open("../config/config.dat");
     
     std::string tmp;
 
@@ -139,7 +139,7 @@ void importMaps(std::vector<std::string> &worlds)
     char c;
     char prev;
 
-    mapFile.open("worlds.dat");
+    mapFile.open("../config/worlds.dat");
     while (mapFile.get(c))
     {
         if (c == '%')

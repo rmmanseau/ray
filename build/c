@@ -1,0 +1,15 @@
+mkdir -p obj/
+cd obj/
+
+g++ -c -O3 \
+	../../src/main.cpp \
+\
+-I/usr/local/lib -std=c++11
+
+g++ \
+	main.o \
+\
+-L/usr/local/lib -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio \
+-o ../ray
+
+cd ../
