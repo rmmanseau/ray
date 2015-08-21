@@ -6,8 +6,8 @@
   RotSpeed:        1.5
   StartX:          1.5
   StartY:          1.5
-  StartDir:        1
-  StartPlane:      0.88
+  StartDir:        1      #1
+  StartPlane:      0.88   #0.88
   MaxBrightness:   155
   RenderDistance:  10000
   ShadowSide:      0

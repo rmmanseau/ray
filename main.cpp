@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <deque>
 #include <cmath>
 
 /*
@@ -24,8 +25,8 @@ int worldL;
 int worldH;
 
 namespace C {
-    int winL = 960;
-    int winH = 540;
+    int winL = 1600;
+    int winH = 900;
 
     int columnWidth = 1;
 
@@ -215,10 +216,22 @@ void move(Player &player, vec2d newPos, vec2d padding) {
     }
 }
 
-void playerInput(Player &player, double timeStep) {
+/*
+    Mouse control is weird and jumpy. Probably unfixable because
+    SFML doesn't care to deal with it.
+*/
+void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool &mouseGrabbed) {
     double moveSpeed = C::walkSpeed * timeStep;
     double rotateSpeed = C::rotateSpeed * timeStep;
 
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::G)) {
+        mouseGrabbed = true;
+        window.setMouseCursorVisible(false);
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::H)) {
+        mouseGrabbed = false;
+        window.setMouseCursorVisible(true);
+    }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) {
         importVariables();
     }
@@ -245,7 +258,8 @@ void playerInput(Player &player, double timeStep) {
         move(player, newPos, padding);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) &&
-        sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
+        (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
+         mouseGrabbed)) {
         vec2d newPos(player.pos.x + player.dir.y * moveSpeed,
                      player.pos.y - player.dir.x * moveSpeed);
         vec2d padding(newPos.x + (player.dir.y > 0 ? 0.15 : -0.15),
@@ -257,7 +271,8 @@ void playerInput(Player &player, double timeStep) {
         rotate(player.camPlane, -rotateSpeed);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) &&
-        sf::Keyboard::isKeyPressed(sf::Keyboard::LControl)) {
+        (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
+         mouseGrabbed)) {
         vec2d newPos(player.pos.x - player.dir.y * moveSpeed,
                      player.pos.y + player.dir.x * moveSpeed);
         vec2d padding(newPos.x - (player.dir.y > 0 ? 0.15 :  -0.15),
@@ -267,6 +282,16 @@ void playerInput(Player &player, double timeStep) {
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
         rotate(player.dir, rotateSpeed);
         rotate(player.camPlane, rotateSpeed);
+    }
+
+    sf::Vector2i currentMousePos = sf::Mouse::getPosition(window);
+    sf::Vector2i middle(C::winL/2, C::winH/2);
+    if (mouseGrabbed && currentMousePos != middle) {
+        rotateSpeed = (currentMousePos.x - middle.x) * timeStep * 0.5;
+        rotate(player.dir, rotateSpeed);
+        rotate(player.camPlane, rotateSpeed);
+
+        sf::Mouse::setPosition(middle, window);
     }
 }
 
@@ -371,6 +396,53 @@ void drawGround(sf::RenderWindow &window) {
     window.draw(ground);
 }
 
+void drawCrossheir(sf::RenderWindow &window) {
+    double size = 2;
+    sf::Vector2f center(C::winL/2.0 - size/2.0, C::winH/2.0 - size/2.0);
+
+    sf::RectangleShape dot;
+    dot.setFillColor(sf::Color::Black);
+    dot.setSize(sf::Vector2f(size, size));
+    dot.setPosition(center);
+    
+    dot.move(-size, 0);
+    window.draw(dot);
+    dot.move(size, -size);
+    window.draw(dot);
+    dot.move(size, size);
+    window.draw(dot);
+    dot.move(-size, size);
+    window.draw(dot);
+}
+
+void handleEvents(sf::RenderWindow &window, sf::Event &event) {
+    while(window.pollEvent(event)) {
+        if (event.type == sf::Event::Closed) {
+            window.close();
+        }
+    }
+}
+
+/*
+    Deals with tiny lagspikes that caused jitters in rotation. 
+    Using an average timeStep over the last few frames remains
+    decently accurate to the actual timeStep, while dampening
+    any spikes.
+*/
+double averageStep(std::deque<double> &lastFrames, double timeStep) {
+    lastFrames.push_front(timeStep);
+    
+    if (lastFrames.size() > 20)
+        lastFrames.pop_back();
+    
+    double average = 0;
+    for (int i = 0; i < lastFrames.size(); ++i)
+        average += lastFrames[i];
+
+    average /= lastFrames.size();
+    return average;
+}
+
 int main()
 {
     sf::RenderWindow window(sf::VideoMode(C::winL, C::winH, 32),
@@ -382,15 +454,19 @@ int main()
     initPlayer(player);
     initWorld();
     sf::Clock gameClock;
-    double timeStep;
+    std::deque<double> timeSteps;
+    sf::Event event;
+    bool mouseGrabbed = false;
 
-    for(;;)
+    while (window.isOpen())
     {   
-        timeStep = gameClock.restart().asSeconds();
-        playerInput(player, timeStep);
+        handleEvents(window, event);
+        double timeStep = averageStep(timeSteps, gameClock.restart().asSeconds());
+        playerInput(window, player, timeStep, mouseGrabbed);
         window.clear(sf::Color(135, 206, 235));
         drawGround(window);
         castRays(window, player);
+        drawCrossheir(window);
         window.display();
     }
 }
