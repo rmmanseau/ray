@@ -10,48 +10,10 @@
 
 #include "../headers/vec2.h"
 #include "../headers/world.h"
+#include "../headers/globals.h"
+#include "../headers/imports.h"
 
-/*
-    16:9
-    1920x1080
-    1600x900
-    1280x720
-    960x540
-
-    4:3
-    960x720
-*/
-
-std::vector<std::string> worlds;
-std::string world;
-int worldL;
-int worldH;
-
-namespace C {
-    int winL = 1600;
-    int winH = 900;
-
-    int columnWidth = 1;
-
-    double walkSpeed = 1;
-    double runSpeed = 2;
-    double rotateSpeed = 0.5;
-
-    double startX = 1.5;
-    double startY = 1.5;
-
-    double startDir = 1;
-    double startPlane = 0.88;
-    
-    int maxBrightness = 75; // Out of 255
-    int renderDistance = 20;
-
-    int shadowSide = 0;
-    double shadowDarkness = 0.7;
-
-    int selectedWorld = 0;
-};
-
+Globals glbl;
 
 struct Player {
     vec2d pos;
@@ -64,131 +26,13 @@ T sqr(T x) {
     return x*x;
 }
 
-void findWorldDimensions() {
-    worldL = 1;
-    for (int i = 0; world[i] != '\n'; i++) {
-        worldL++;
-    }
-    
-    worldH = world.length() / worldL;
-}
-
-char charAt(int x, int y) {
-    return world[y * worldL + x];
-}
-
 void initPlayer(Player &player) {
-    player.pos = vec2d(C::startX, C::startY);
-    player.dir = vec2d(C::startDir, 0);
-    player.camPlane = vec2d(0, C::startPlane);
+    player.pos = vec2d(glbl.startX, glbl.startY);
+    player.dir = vec2d(glbl.startDir, 0);
+    player.camPlane = vec2d(0, glbl.startPlane);
 }
 
-void importVariables()
-{
-    std::ifstream varFile;
-    varFile.open("../config/config.dat");
-    
-    std::string tmp;
 
-    std::vector<double> vars;
-
-    while (getline(varFile, tmp, ':'))
-    {
-        double currentVar;
-
-        varFile >> currentVar;
-        vars.push_back(currentVar);
-    }
-
-    varFile.close();
-
-    C::columnWidth = vars[0];
-
-    C::walkSpeed = vars[1];
-    C::runSpeed = vars[2];
-    C::rotateSpeed = vars[3];
-
-    C::startX = vars[4];
-    C::startY = vars[5];
-
-    C::startDir = vars[6];
-    C::startPlane = vars[7];
-
-    C::maxBrightness = vars[8];
-    C::renderDistance = vars[9];
-
-    C::shadowSide = vars[10];
-    C::shadowDarkness = vars[11];
-
-    C::selectedWorld = vars[12];
-}
-
-void importMaps(std::vector<std::string> &worlds)
-{
-    std::ifstream mapFile;
-
-    char c;
-    char prev;
-
-    mapFile.open("../config/worlds.dat");
-    while (mapFile.get(c))
-    {
-        if (c == '%')
-        {
-            int baseLength = -1;
-            int length = 0;
-            std::stringstream world_in;
-            std::string world;
-
-            mapFile >> std::ws;
-
-            while (mapFile.get(c))
-            {
-                if (c == '%')
-                    break;
-                else {
-                    ++length;
-                    world_in << c;
-                }
-
-                if (c == '\n')
-                {
-                    if (baseLength == -1)
-                    {
-                        baseLength = length;
-                        length = 0;
-                    }
-                    else
-                    {
-                        if (length != baseLength)
-                        {
-                            std::cout << "ERROR: rows are not all the same length";
-                            if (c == '\n' && prev == '\n')
-                                std::cout << " (did you forget \% at the end?)\n";
-                            else
-                                std::cout << '\n';
-                            exit(1);
-                        }
-
-                        length = 0;
-                    }
-                }
-
-                prev = c;
-            }
-
-            world = world_in.str();
-            worlds.push_back(world);
-        }
-    }
-    mapFile.close(); 
-}
-
-void initWorld() {
-    importMaps(worlds);
-    world = worlds[C::selectedWorld];
-    findWorldDimensions();
-}
 
 template <typename T>
 void rotate(vec2<T> &vec, double rotateSpeed)
@@ -198,11 +42,11 @@ void rotate(vec2<T> &vec, double rotateSpeed)
     vec.y = oldX * sin(rotateSpeed) + vec.y * cos(rotateSpeed);
 }
 
-void move(Player &player, vec2d newPos, vec2d padding) {
-    if (charAt((int)padding.x, (int)player.pos.y) == ' ') {
+void move(World& world, Player &player, vec2d newPos, vec2d padding) {
+    if (world.map.charAt((int)padding.x, (int)player.pos.y) == ' ') {
         player.pos.x = newPos.x;
     }
-    if (charAt((int)player.pos.x, (int)padding.y) == ' ') {
+    if (world.map.charAt((int)player.pos.x, (int)padding.y) == ' ') {
         player.pos.y = newPos.y;
     }
 }
@@ -211,9 +55,9 @@ void move(Player &player, vec2d newPos, vec2d padding) {
     Mouse control is weird and jumpy. Probably unfixable because
     SFML doesn't care to deal with it.
 */
-void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool &mouseGrabbed) {
-    double moveSpeed = C::walkSpeed * timeStep;
-    double rotateSpeed = C::rotateSpeed * timeStep;
+void playerInput(sf::RenderWindow &window, World& world, Player &player, double timeStep, bool &mouseGrabbed) {
+    double moveSpeed = glbl.walkSpeed * timeStep;
+    double rotateSpeed = glbl.rotateSpeed * timeStep;
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::G)) {
         mouseGrabbed = true;
@@ -224,14 +68,14 @@ void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool
         window.setMouseCursorVisible(true);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) {
-        importVariables();
+        importGlobals();
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) {
         initPlayer(player);
-        initWorld();
+        world.switchToMap(glbl.selectedMap);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
-        moveSpeed = C::runSpeed * timeStep;
+        moveSpeed = glbl.runSpeed * timeStep;
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
         vec2d newPos(player.pos.x + player.dir.x * moveSpeed,
@@ -239,14 +83,14 @@ void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool
         vec2d padding(newPos.x + (player.dir.x > 0 ? 0.15 : -0.15),
                       newPos.y + (player.dir.y > 0 ? 0.15 : -0.15));
 
-        move(player, newPos, padding);
+        move(world, player, newPos, padding);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
         vec2d newPos(player.pos.x - player.dir.x * moveSpeed,
                      player.pos.y - player.dir.y * moveSpeed);
         vec2d padding(newPos.x - (player.dir.x > 0 ? 0.15 : -0.15),
                       newPos.y - (player.dir.y > 0 ? 0.15 : -0.15));
-        move(player, newPos, padding);
+        move(world, player, newPos, padding);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) &&
         (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
@@ -255,7 +99,7 @@ void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool
                      player.pos.y - player.dir.x * moveSpeed);
         vec2d padding(newPos.x + (player.dir.y > 0 ? 0.15 : -0.15),
                       newPos.y - (player.dir.x > 0 ? 0.15 : -0.15));
-        move(player, newPos, padding);
+        move(world, player, newPos, padding);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
         rotate(player.dir, -rotateSpeed);
@@ -268,7 +112,7 @@ void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool
                      player.pos.y + player.dir.x * moveSpeed);
         vec2d padding(newPos.x - (player.dir.y > 0 ? 0.15 :  -0.15),
                       newPos.y + (player.dir.x > 0 ? 0.15 :  -0.15));
-        move(player, newPos, padding);
+        move(world, player, newPos, padding);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
         rotate(player.dir, rotateSpeed);
@@ -276,7 +120,7 @@ void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool
     }
 
     sf::Vector2i currentMousePos = sf::Mouse::getPosition(window);
-    sf::Vector2i middle(C::winL/2, C::winH/2);
+    sf::Vector2i middle(glbl.winL/2, glbl.winH/2);
     if (mouseGrabbed && currentMousePos != middle) {
         rotateSpeed = (currentMousePos.x - middle.x) * timeStep * 0.5;
         rotate(player.dir, rotateSpeed);
@@ -286,7 +130,7 @@ void playerInput(sf::RenderWindow &window, Player &player, double timeStep, bool
     }
 }
 
-double castRay(vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
+double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
     vec2i mapPos((int)rayPos.x, (int)rayPos.y);
 
     vec2d delta((double)sqrt(1 + sqr(rayDir.y) / sqr(rayDir.x)),
@@ -327,7 +171,7 @@ double castRay(vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
             mapPos.y += step.y;
             side = 1;
         }
-        if (charAt(mapPos.x, mapPos.y) != ' ') {
+        if (world.map.charAt(mapPos.x, mapPos.y) != ' ') {
             hit = 1;
         }
     }
@@ -341,18 +185,18 @@ double castRay(vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
 }
 
 void drawColumn(sf::RenderWindow &window, double distance, int side, int column) {
-    int height = std::abs(C::winH / distance);
+    int height = std::abs(glbl.winH / distance);
 
     sf::RectangleShape bar;
-    bar.setSize(sf::Vector2f(C::columnWidth, height));
-    bar.setPosition(sf::Vector2f(column, C::winH/2 - height/2));
+    bar.setSize(sf::Vector2f(glbl.columnWidth, height));
+    bar.setPosition(sf::Vector2f(column, glbl.winH/2 - height/2));
 
-    int color = C::maxBrightness * C::renderDistance / sqr(distance);
-    if (color > C::maxBrightness) {
-        color = C::maxBrightness;
+    int color = glbl.maxBrightness * glbl.renderDistance / sqr(distance);
+    if (color > glbl.maxBrightness) {
+        color = glbl.maxBrightness;
     }
-    if (side == C::shadowSide) {
-        color *= C::shadowDarkness;
+    if (side == glbl.shadowSide) {
+        color *= glbl.shadowDarkness;
     }
 
     bar.setFillColor(sf::Color(color, color, color));
@@ -361,10 +205,10 @@ void drawColumn(sf::RenderWindow &window, double distance, int side, int column)
     window.draw(bar);
 }
 
-void castRays(sf::RenderWindow &window, Player player) {
+void castRays(sf::RenderWindow &window, World& world, Player player) {
     
-    for (int col = 0; col < C::winL; col += C::columnWidth) {
-        double camColumn = 2*col / double(C::winL) - 1;
+    for (int col = 0; col < glbl.winL; col += glbl.columnWidth) {
+        double camColumn = 2*col / double(glbl.winL) - 1;
         
         vec2d rayPos = player.pos;
         vec2d rayDir(player.dir.x + player.camPlane.x * camColumn,
@@ -373,15 +217,15 @@ void castRays(sf::RenderWindow &window, Player player) {
         double distance;
         int side;
         
-        castRay(rayPos, rayDir, distance, side);
+        castRay(world, rayPos, rayDir, distance, side);
         drawColumn(window, distance, side, col);
     }
 }
 
 void drawGround(sf::RenderWindow &window) {
     sf::RectangleShape ground;
-    ground.setSize(sf::Vector2f(C::winL, C::winH/2));
-    ground.setPosition(sf::Vector2f(0, C::winH/2));
+    ground.setSize(sf::Vector2f(glbl.winL, glbl.winH/2));
+    ground.setPosition(sf::Vector2f(0, glbl.winH/2));
     ground.setFillColor(sf::Color(70, 130, 60));
 
     window.draw(ground);
@@ -389,7 +233,7 @@ void drawGround(sf::RenderWindow &window) {
 
 void drawCrossheir(sf::RenderWindow &window) {
     double size = 2;
-    sf::Vector2f center(C::winL/2.0 - size/2.0, C::winH/2.0 - size/2.0);
+    sf::Vector2f center(glbl.winL/2.0 - size/2.0, glbl.winH/2.0 - size/2.0);
 
     sf::RectangleShape dot;
     dot.setFillColor(sf::Color::Black);
@@ -435,15 +279,32 @@ double averageStep(std::deque<double> &lastFrames, double timeStep) {
 }
 
 int main()
-{
-    sf::RenderWindow window(sf::VideoMode(C::winL, C::winH, 32),
+{    
+    /*
+    16:9
+    1920x1080
+    1600x900
+    1280x720
+    960x540
+
+    4:3
+    960x720
+    */
+
+    glbl.winL = 960;
+    glbl.winH = 540;
+    sf::RenderWindow window(sf::VideoMode(glbl.winL, glbl.winH, 32),
                             "SFML Raycasting!", 
                             sf::Style::Close);
 
-    importVariables();
+    importGlobals();
     Player player;
     initPlayer(player);
-    initWorld();
+    
+    World world;
+    importMaps(world);
+    world.switchToMap(glbl.selectedMap);
+    
     sf::Clock gameClock;
     std::deque<double> timeSteps;
     sf::Event event;
@@ -454,10 +315,10 @@ int main()
     {   
         handleEvents(window, event);
         double timeStep = averageStep(timeSteps, gameClock.restart().asSeconds());
-        playerInput(window, player, timeStep, mouseGrabbed);
+        playerInput(window, world, player, timeStep, mouseGrabbed);
         window.clear(sf::Color(135, 206, 235));
         drawGround(window);
-        castRays(window, player);
+        castRays(window, world, player);
         drawCrossheir(window);
         window.display();
     }

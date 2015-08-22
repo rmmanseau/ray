@@ -13,6 +13,7 @@ public:
 
     World(std::string in_map);
     World(Map in_map);
+    World();
     void addMap(std::string in_map);
     void addMap(Map in_map);
     void switchToMap(int i);
