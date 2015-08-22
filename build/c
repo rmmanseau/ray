@@ -2,12 +2,16 @@ mkdir -p obj/
 cd obj/
 
 g++ -c -O3 \
-	../../src/main.cpp \
+    ../../src/main.cpp   \
+    ../../src/map.cpp    \
+	../../src/world.cpp  \
 \
 -I/usr/local/lib -std=c++11
 
 g++ \
-	main.o \
+    main.o  \
+	map.o   \
+    world.o \
 \
 -L/usr/local/lib -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio \
 -o ../ray

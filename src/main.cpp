@@ -8,6 +8,9 @@
 #include <deque>
 #include <cmath>
 
+#include "../headers/vec2.h"
+#include "../headers/world.h"
+
 /*
     16:9
     1920x1080
@@ -49,18 +52,6 @@ namespace C {
     int selectedWorld = 0;
 };
 
-template <class T>
-struct vec2
-{
-  T x;
-  T y;
-
-  vec2(T _x, T _y) : x(_x), y(_y) {}
-  vec2() : x(0), y(0) {}
-};
-
-typedef vec2<double> vec2d;
-typedef vec2<int> vec2i;
 
 struct Player {
     vec2d pos;
@@ -457,6 +448,7 @@ int main()
     std::deque<double> timeSteps;
     sf::Event event;
     bool mouseGrabbed = false;
+
 
     while (window.isOpen())
     {   
