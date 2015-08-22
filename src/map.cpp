@@ -18,7 +18,7 @@ void Map::findDimensions() {
 }
 
 char Map::charAt(int x, int y) {
-    return grid[y*l + x];
+    return grid.at(y*l + x);
 }
 
 void Map::print() {

@@ -5,7 +5,8 @@ g++ -c -O3 \
     ../../src/main.cpp    \
     ../../src/map.cpp     \
     ../../src/world.cpp   \
-	../../src/imports.cpp \
+    ../../src/imports.cpp \
+	../../src/player.cpp  \
 \
 -I/usr/local/lib -std=c++11
 
@@ -14,6 +15,7 @@ g++ \
 	map.o     \
     world.o   \
     imports.o \
+    player.o  \
 \
 -L/usr/local/lib -lsfml-graphics -lsfml-window -lsfml-system -lsfml-audio \
 -o ../ray

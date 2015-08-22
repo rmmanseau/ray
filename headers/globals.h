@@ -1,6 +1,12 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+/*
+ * Globals are declared here.
+ * The values of the globals are pulled in from globals.dat by the
+ * importGlobals() function.
+*/
+
 struct Globals {
     int winH;
     int winL;

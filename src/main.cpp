@@ -12,43 +12,13 @@
 #include "../headers/world.h"
 #include "../headers/globals.h"
 #include "../headers/imports.h"
+#include "../headers/player.h"
 
 Globals glbl;
-
-struct Player {
-    vec2d pos;
-    vec2d dir;
-    vec2d camPlane;
-};
 
 template <typename T>
 T sqr(T x) {
     return x*x;
-}
-
-void initPlayer(Player &player) {
-    player.pos = vec2d(glbl.startX, glbl.startY);
-    player.dir = vec2d(glbl.startDir, 0);
-    player.camPlane = vec2d(0, glbl.startPlane);
-}
-
-
-
-template <typename T>
-void rotate(vec2<T> &vec, double rotateSpeed)
-{
-    double oldX = vec.x;
-    vec.x = oldX * cos(rotateSpeed) - vec.y * sin(rotateSpeed);
-    vec.y = oldX * sin(rotateSpeed) + vec.y * cos(rotateSpeed);
-}
-
-void move(World& world, Player &player, vec2d newPos, vec2d padding) {
-    if (world.map.charAt((int)padding.x, (int)player.pos.y) == ' ') {
-        player.pos.x = newPos.x;
-    }
-    if (world.map.charAt((int)player.pos.x, (int)padding.y) == ' ') {
-        player.pos.y = newPos.y;
-    }
 }
 
 /*
@@ -56,8 +26,10 @@ void move(World& world, Player &player, vec2d newPos, vec2d padding) {
     SFML doesn't care to deal with it.
 */
 void playerInput(sf::RenderWindow &window, World& world, Player &player, double timeStep, bool &mouseGrabbed) {
-    double moveSpeed = glbl.walkSpeed * timeStep;
-    double rotateSpeed = glbl.rotateSpeed * timeStep;
+    double moveSpeed = glbl.walkSpeed;
+    double rotateSpeed = glbl.rotateSpeed;
+
+    double thickness = 0.15;
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::G)) {
         mouseGrabbed = true;
@@ -71,61 +43,40 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
         importGlobals();
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) {
-        initPlayer(player);
+        player.init();
         world.switchToMap(glbl.selectedMap);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
-        moveSpeed = glbl.runSpeed * timeStep;
+        moveSpeed = glbl.runSpeed;
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) {
-        vec2d newPos(player.pos.x + player.dir.x * moveSpeed,
-                     player.pos.y + player.dir.y * moveSpeed);
-        vec2d padding(newPos.x + (player.dir.x > 0 ? 0.15 : -0.15),
-                      newPos.y + (player.dir.y > 0 ? 0.15 : -0.15));
-
-        move(world, player, newPos, padding);
+        player.moveForward(world, timeStep, moveSpeed);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::S)) {
-        vec2d newPos(player.pos.x - player.dir.x * moveSpeed,
-                     player.pos.y - player.dir.y * moveSpeed);
-        vec2d padding(newPos.x - (player.dir.x > 0 ? 0.15 : -0.15),
-                      newPos.y - (player.dir.y > 0 ? 0.15 : -0.15));
-        move(world, player, newPos, padding);
+        player.moveBack(world, timeStep, moveSpeed);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) &&
         (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
          mouseGrabbed)) {
-        vec2d newPos(player.pos.x + player.dir.y * moveSpeed,
-                     player.pos.y - player.dir.x * moveSpeed);
-        vec2d padding(newPos.x + (player.dir.y > 0 ? 0.15 : -0.15),
-                      newPos.y - (player.dir.x > 0 ? 0.15 : -0.15));
-        move(world, player, newPos, padding);
+        player.moveLeft(world, timeStep, moveSpeed);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
-        rotate(player.dir, -rotateSpeed);
-        rotate(player.camPlane, -rotateSpeed);
+        player.rotate(timeStep, -rotateSpeed);
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) &&
         (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
          mouseGrabbed)) {
-        vec2d newPos(player.pos.x - player.dir.y * moveSpeed,
-                     player.pos.y + player.dir.x * moveSpeed);
-        vec2d padding(newPos.x - (player.dir.y > 0 ? 0.15 :  -0.15),
-                      newPos.y + (player.dir.x > 0 ? 0.15 :  -0.15));
-        move(world, player, newPos, padding);
+        player.moveRight(world, timeStep, moveSpeed);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
-        rotate(player.dir, rotateSpeed);
-        rotate(player.camPlane, rotateSpeed);
+        player.rotate(timeStep, rotateSpeed);
     }
 
     sf::Vector2i currentMousePos = sf::Mouse::getPosition(window);
     sf::Vector2i middle(glbl.winL/2, glbl.winH/2);
     if (mouseGrabbed && currentMousePos != middle) {
-        rotateSpeed = (currentMousePos.x - middle.x) * timeStep * 0.5;
-        rotate(player.dir, rotateSpeed);
-        rotate(player.camPlane, rotateSpeed);
-
+        rotateSpeed = (currentMousePos.x - middle.x) * 0.5;
+        player.rotate(timeStep, rotateSpeed);
         sf::Mouse::setPosition(middle, window);
     }
 }
@@ -267,7 +218,7 @@ void handleEvents(sf::RenderWindow &window, sf::Event &event) {
 double averageStep(std::deque<double> &lastFrames, double timeStep) {
     lastFrames.push_front(timeStep);
     
-    if (lastFrames.size() > 20)
+    if (lastFrames.size() > 5)
         lastFrames.pop_back();
     
     double average = 0;
@@ -299,7 +250,7 @@ int main()
 
     importGlobals();
     Player player;
-    initPlayer(player);
+    // initPlayer(player);
     
     World world;
     importMaps(world);
