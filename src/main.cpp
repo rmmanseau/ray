@@ -218,7 +218,7 @@ void handleEvents(sf::RenderWindow &window, sf::Event &event) {
 double averageStep(std::deque<double> &lastFrames, double timeStep) {
     lastFrames.push_front(timeStep);
     
-    if (lastFrames.size() > 5)
+    if (lastFrames.size() > 20)
         lastFrames.pop_back();
     
     double average = 0;
