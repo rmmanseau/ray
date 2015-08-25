@@ -11,6 +11,8 @@ struct Globals {
     int winH;
     int winL;
 
+    bool mouseLocked;
+
     int columnWidth;
 
     double walkSpeed;

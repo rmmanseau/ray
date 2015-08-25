@@ -24,28 +24,13 @@ T sqr(T x) {
 /*
     Mouse control is weird and jumpy. Probably unfixable because
     SFML doesn't care to deal with it.
+    Ended up being caused by spikes of lag that resulted in large timeSteps.
+    Using average
 */
-void playerInput(sf::RenderWindow &window, World& world, Player &player, double timeStep, bool &mouseGrabbed) {
+void playerInput(sf::RenderWindow &window, World& world, Player &player, double timeStep) {
     double moveSpeed = glbl.walkSpeed;
     double rotateSpeed = glbl.rotateSpeed;
 
-    double thickness = 0.15;
-
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::G)) {
-        mouseGrabbed = true;
-        window.setMouseCursorVisible(false);
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::H)) {
-        mouseGrabbed = false;
-        window.setMouseCursorVisible(true);
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num1)) {
-        importGlobals();
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Num2)) {
-        player.init();
-        world.switchToMap(glbl.selectedMap);
-    }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
         moveSpeed = glbl.runSpeed;
     }
@@ -57,7 +42,7 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::A) &&
         (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
-         mouseGrabbed)) {
+         glbl.mouseLocked)) {
         player.moveLeft(world, timeStep, moveSpeed);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::A)) {
@@ -65,7 +50,7 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::D) &&
         (sf::Keyboard::isKeyPressed(sf::Keyboard::LControl) ||
-         mouseGrabbed)) {
+         glbl.mouseLocked)) {
         player.moveRight(world, timeStep, moveSpeed);
     }
     else if (sf::Keyboard::isKeyPressed(sf::Keyboard::D)) {
@@ -74,7 +59,7 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
 
     sf::Vector2i currentMousePos = sf::Mouse::getPosition(window);
     sf::Vector2i middle(glbl.winL/2, glbl.winH/2);
-    if (mouseGrabbed && currentMousePos != middle) {
+    if (glbl.mouseLocked && currentMousePos != middle) {
         rotateSpeed = (currentMousePos.x - middle.x) * 0.5;
         player.rotate(timeStep, rotateSpeed);
         sf::Mouse::setPosition(middle, window);
@@ -201,10 +186,23 @@ void drawCrossheir(sf::RenderWindow &window) {
     window.draw(dot);
 }
 
-void handleEvents(sf::RenderWindow &window, sf::Event &event) {
+void handleEvents(sf::RenderWindow &window, sf::Event &event, World& world, Player& player) {
     while(window.pollEvent(event)) {
         if (event.type == sf::Event::Closed) {
             window.close();
+        }
+        if (event.type == sf::Event::KeyPressed) {
+            if (event.key.code == sf::Keyboard::G) {
+                window.setMouseCursorVisible(glbl.mouseLocked);
+                glbl.mouseLocked = !glbl.mouseLocked;
+            }
+            if (event.key.code == sf::Keyboard::Num1) {
+                importGlobals();
+            }
+            if (event.key.code == sf::Keyboard::Num2) {
+                player.init();
+                world.switchToMap(glbl.selectedMap);
+            }
         }
     }
 }
@@ -244,6 +242,7 @@ int main()
 
     glbl.winL = 960;
     glbl.winH = 540;
+    glbl.mouseLocked = false;
     sf::RenderWindow window(sf::VideoMode(glbl.winL, glbl.winH, 32),
                             "SFML Raycasting!", 
                             sf::Style::Close);
@@ -259,14 +258,12 @@ int main()
     sf::Clock gameClock;
     std::deque<double> timeSteps;
     sf::Event event;
-    bool mouseGrabbed = false;
-
 
     while (window.isOpen())
     {   
         handleEvents(window, event);
         double timeStep = averageStep(timeSteps, gameClock.restart().asSeconds());
-        playerInput(window, world, player, timeStep, mouseGrabbed);
+        playerInput(window, world, player, timeStep);
         window.clear(sf::Color(135, 206, 235));
         drawGround(window);
         castRays(window, world, player);
