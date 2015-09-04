@@ -261,7 +261,7 @@ int main()
 
     while (window.isOpen())
     {   
-        handleEvents(window, event);
+        handleEvents(window, event, world, player);
         double timeStep = averageStep(timeSteps, gameClock.restart().asSeconds());
         playerInput(window, world, player, timeStep);
         window.clear(sf::Color(135, 206, 235));
