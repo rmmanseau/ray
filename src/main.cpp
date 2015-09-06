@@ -31,6 +31,9 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     double moveSpeed = glbl.walkSpeed;
     double rotateSpeed = glbl.rotateSpeed;
 
+    // if (sf::Keyboard::isKeyPressed(sf::Keyboard::C)) {
+    //     glbl.crouch = glbl.winH/8;
+    // }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
         moveSpeed = glbl.runSpeed;
     }
@@ -63,6 +66,12 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
         rotateSpeed = (currentMousePos.x - middle.x) * 0.5;
         player.rotate(timeStep, rotateSpeed);
         sf::Mouse::setPosition(middle, window);
+
+        double crouchOffset = (currentMousePos.y - middle.y) * 0.5;
+        if ((glbl.crouch > -glbl.winH && crouchOffset > 0) ||
+            (glbl.crouch < 2*glbl.winH && crouchOffset < 0)) {
+            glbl.crouch -= crouchOffset;
+        }
     }
 }
 
@@ -125,7 +134,7 @@ void drawColumn(sf::RenderWindow &window, double distance, int side, int column)
 
     sf::RectangleShape bar;
     bar.setSize(sf::Vector2f(glbl.columnWidth, height));
-    bar.setPosition(sf::Vector2f(column, glbl.winH/2 - height/2));
+    bar.setPosition(sf::Vector2f(column, glbl.crouch - height/2));
 
     int color = glbl.maxBrightness * glbl.renderDistance / sqr(distance);
     if (color > glbl.maxBrightness) {
@@ -160,8 +169,8 @@ void castRays(sf::RenderWindow &window, World& world, Player player) {
 
 void drawGround(sf::RenderWindow &window) {
     sf::RectangleShape ground;
-    ground.setSize(sf::Vector2f(glbl.winL, glbl.winH/2));
-    ground.setPosition(sf::Vector2f(0, glbl.winH/2));
+    ground.setSize(sf::Vector2f(glbl.winL, glbl.winH*2.5));
+    ground.setPosition(sf::Vector2f(0, glbl.crouch));
     ground.setFillColor(sf::Color(70, 130, 60));
 
     window.draw(ground);
@@ -243,6 +252,7 @@ int main()
     glbl.winL = 960;
     glbl.winH = 540;
     glbl.mouseLocked = false;
+    glbl.crouch = glbl.winH/2;
     sf::RenderWindow window(sf::VideoMode(glbl.winL, glbl.winH, 32),
                             "SFML Raycasting!", 
                             sf::Style::Close);
