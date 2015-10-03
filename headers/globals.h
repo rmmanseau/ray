@@ -33,6 +33,8 @@ struct Globals {
     double shadowDarkness;
 
     int selectedMap;
+
+    int crouch;
 };
 
 extern Globals glbl;
