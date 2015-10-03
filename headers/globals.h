@@ -24,6 +24,7 @@ struct Globals {
 
     double startDir;
     double startPlane;
+    double FOV;
     
     int maxBrightness; // Out of 255
     int renderDistance;

@@ -34,16 +34,15 @@ void importGlobals()
     glbl.startX = vars[4];
     glbl.startY = vars[5];
 
-    glbl.startDir = vars[6];
-    glbl.startPlane = vars[7];
+    glbl.FOV = vars[6];
 
-    glbl.maxBrightness = vars[8];
-    glbl.renderDistance = vars[9];
+    glbl.maxBrightness = vars[7];
+    glbl.renderDistance = vars[8];
 
-    glbl.shadowSide = vars[10];
-    glbl.shadowDarkness = vars[11];
+    glbl.shadowSide = vars[9];
+    glbl.shadowDarkness = vars[10];
 
-    glbl.selectedMap = vars[12];
+    glbl.selectedMap = vars[11];
 }
 
 void importMaps(World& world)

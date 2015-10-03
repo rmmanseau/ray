@@ -31,6 +31,19 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     double moveSpeed = glbl.walkSpeed;
     double rotateSpeed = glbl.rotateSpeed;
 
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad9)) {
+        player.camPlane *= 1.001;
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad8)) {
+        player.camPlane *= 0.999;
+    }    
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad6)) {
+        player.dir *= 1.001;
+    }
+    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad5)) {
+        player.dir *= 0.999;
+    }    
+
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
         moveSpeed = glbl.runSpeed;
     }
@@ -66,11 +79,18 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     }
 }
 
+double pythagorian(double a, double b) {
+    return (double)sqrt(sqr(a) + sqr(b));
+}
+
 double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
     vec2i mapPos((int)rayPos.x, (int)rayPos.y);
 
-    vec2d delta((double)sqrt(1 + sqr(rayDir.y) / sqr(rayDir.x)),
-                (double)sqrt(1 + sqr(rayDir.x) / sqr(rayDir.y)));
+    double scaledY = rayDir.y/rayDir.x;
+    double scaledX = rayDir.x/rayDir.y;
+
+    vec2d delta(pythagorian(1, scaledY),
+                pythagorian(1, scaledX));
 
     vec2d nextSide;
     vec2d step;
@@ -144,7 +164,7 @@ void drawColumn(sf::RenderWindow &window, double distance, int side, int column)
 void castRays(sf::RenderWindow &window, World& world, Player player) {
     
     for (int col = 0; col < glbl.winL; col += glbl.columnWidth) {
-        double camColumn = 2*col / double(glbl.winL) - 1;
+        double camColumn = 2*col / (double)glbl.winL - 1;
         
         vec2d rayPos = player.pos;
         vec2d rayDir(player.dir.x + player.camPlane.x * camColumn,

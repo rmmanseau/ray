@@ -11,6 +11,8 @@ public:
     vec2d pos;
     vec2d dir;
     vec2d camPlane;
+    vec2d normDir;
+    vec2d normCamPlane;
     double thickness;
 
     Player();
