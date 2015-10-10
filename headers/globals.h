@@ -9,7 +9,10 @@
 
 struct Globals {
     int winH;
-    int winL;
+    int winW;
+
+    int texH;
+    int texW;
 
     bool mouseLocked;
 

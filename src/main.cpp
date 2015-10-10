@@ -15,6 +15,8 @@
 #include "../headers/player.h"
 
 Globals glbl;
+sf::Texture wolfTextures;
+
 
 template <typename T>
 T sqr(T x) {
@@ -71,7 +73,7 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     }
 
     sf::Vector2i currentMousePos = sf::Mouse::getPosition(window);
-    sf::Vector2i middle(glbl.winL/2, glbl.winH/2);
+    sf::Vector2i middle(glbl.winW/2, glbl.winH/2);
     if (glbl.mouseLocked && currentMousePos != middle) {
         rotateSpeed = (currentMousePos.x - middle.x) * 0.5;
         player.rotate(timeStep, rotateSpeed);
@@ -89,7 +91,7 @@ double pythagorian(double a, double b) {
     return (double)sqrt(sqr(a) + sqr(b));
 }
 
-double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, int &side) {
+double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, double &wallPos, int &side, char &wallType) {
     vec2i mapPos((int)rayPos.x, (int)rayPos.y);
 
     double scaledY = rayDir.y/rayDir.x;
@@ -133,60 +135,64 @@ double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, int 
             mapPos.y += step.y;
             side = 1;
         }
-        if (world.map.charAt(mapPos.x, mapPos.y) != ' ') {
+        wallType = world.map.charAt(mapPos.x, mapPos.y);
+        if (wallType != ' ') {
             hit = 1;
         }
     }
 
     if (side == 0) {
         finalDist = std::abs((mapPos.x - rayPos.x + (1 - step.x) / 2.0) / rayDir.x);
+        wallPos = rayPos.y + ((mapPos.x - rayPos.x + (1 - step.x) / 2) / rayDir.x) * rayDir.y;
     }
     else {
         finalDist = std::abs((mapPos.y - rayPos.y + (1 - step.y) / 2.0) / rayDir.y);
+        wallPos = rayPos.x + ((mapPos.y - rayPos.y + (1 - step.y) / 2) / rayDir.y) * rayDir.x;
     }
+
+    wallPos -= floor(wallPos);
 }
 
-void drawColumn(sf::RenderWindow &window, double distance, int side, int column) {
+void drawColumn(sf::RenderWindow &window, double distance, int side, int column, double wallPos, char wallType) {
+    
+    int textureNum = (int)(wallType - '0');
+
+    int texX = (int)(wallPos * (double)glbl.texW);
     int height = std::abs(glbl.winH / distance);
 
-    sf::RectangleShape bar;
-    bar.setSize(sf::Vector2f(glbl.columnWidth, height));
+    sf::Sprite bar(wolfTextures, sf::IntRect((textureNum*glbl.texW)+texX,0,1,glbl.texH));
+    bar.scale(sf::Vector2f(glbl.columnWidth, (double)glbl.winH/(glbl.texH*distance)));
     bar.setPosition(sf::Vector2f(column, glbl.crouch - height/2));
 
-    int color = glbl.maxBrightness * glbl.renderDistance / sqr(distance);
-    if (color > glbl.maxBrightness) {
-        color = glbl.maxBrightness;
+    if (side == 1) {
+        bar.setColor(sf::Color(165, 165, 165));
     }
-    if (side == glbl.shadowSide) {
-        color *= glbl.shadowDarkness;
-    }
-
-    bar.setFillColor(sf::Color(color, color, color));
-    // bar.setFillColor(sf::Color(0, color/1.5, color));
 
     window.draw(bar);
 }
 
 void castRays(sf::RenderWindow &window, World& world, Player player) {
     
-    for (int col = 0; col < glbl.winL; col += glbl.columnWidth) {
-        double camColumn = 2*col / (double)glbl.winL - 1;
+    for (int col = 0; col < glbl.winW; col += glbl.columnWidth) {
+        double camColumn = 2*col / (double)glbl.winW - 1;
         
         vec2d rayPos = player.pos;
         vec2d rayDir(player.dir.x + player.camPlane.x * camColumn,
                      player.dir.y + player.camPlane.y * camColumn);
 
         double distance;
+        double wallPos;
         int side;
+        char wallType;
         
-        castRay(world, rayPos, rayDir, distance, side);
-        drawColumn(window, distance, side, col);
+        castRay(world, rayPos, rayDir, distance, wallPos, side, wallType);
+        drawColumn(window, distance, side, col, wallPos, wallType);
     }
 }
 
 void drawGround(sf::RenderWindow &window) {
     sf::RectangleShape ground;
-    ground.setSize(sf::Vector2f(glbl.winL, glbl.winH*2.5));
+    ground.setSize(sf::Vector2f(glbl.winW, glbl.winH*2.5));
     ground.setPosition(sf::Vector2f(0, glbl.crouch));
     ground.setFillColor(sf::Color(70, 130, 60));
 
@@ -195,7 +201,7 @@ void drawGround(sf::RenderWindow &window) {
 
 void drawCrossheir(sf::RenderWindow &window) {
     double size = 2;
-    sf::Vector2f center(glbl.winL/2.0 - size/2.0, glbl.winH/2.0 - size/2.0);
+    sf::Vector2f center(glbl.winW/2.0 - size/2.0, glbl.winH/2.0 - size/2.0);
 
     sf::RectangleShape dot;
     dot.setFillColor(sf::Color::Black);
@@ -266,11 +272,13 @@ int main()
     960x720
     */
 
-    glbl.winL = 960;
+    glbl.winW = 960;
     glbl.winH = 540;
+    glbl.texW = 8;
+    glbl.texH = 8;
     glbl.mouseLocked = false;
     glbl.crouch = glbl.winH/2;
-    sf::RenderWindow window(sf::VideoMode(glbl.winL, glbl.winH, 32),
+    sf::RenderWindow window(sf::VideoMode(glbl.winW, glbl.winH, 32),
                             "SFML Raycasting!", 
                             sf::Style::Close);
 
@@ -285,6 +293,8 @@ int main()
     sf::Clock gameClock;
     std::deque<double> timeSteps;
     sf::Event event;
+
+    wolfTextures.loadFromFile("../assets/textures/16bittextures.png");
 
     while (window.isOpen())
     {   
