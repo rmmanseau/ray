@@ -12,8 +12,8 @@ void Player::init() {
     pos = vec2d(glbl.startX, glbl.startY);
     // dir = vec2d(glbl.startDir, 0);
     // camPlane = vec2d(0, glbl.startPlane);
-    dir = vec2d(1, 0);
-    camPlane = vec2d(0, std::tan(glbl.FOV*M_PI/360));
+    dir = vec2d(1.0/std::tan(glbl.FOV*M_PI/360), 0);
+    camPlane = vec2d(0, 1);
     normDir = vec2d(1, 0);
     thickness = 0.15;
 }

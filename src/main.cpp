@@ -23,6 +23,20 @@ T sqr(T x) {
     return x*x;
 }
 
+struct RayInfo {
+    double length;
+    double wallX;
+    int side;
+    char wallType;
+
+    RayInfo(double _length, double _wallX, int _side, char _wallType)
+        : length(_length)
+        , wallX(_wallX)
+        , side(_side)
+        , wallType(_wallType)
+    {}
+};
+
 /*
     Mouse control is weird and jumpy. Probably unfixable because
     SFML doesn't care to deal with it.
@@ -33,18 +47,12 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     double moveSpeed = glbl.walkSpeed;
     double rotateSpeed = glbl.rotateSpeed;
 
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad9)) {
-        player.camPlane *= 1.001;
-    }
-    if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad8)) {
-        player.camPlane *= 0.999;
-    }    
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad6)) {
-        player.dir *= 1.001;
+        player.dir *= 1.0001;
     }
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::Numpad5)) {
-        player.dir *= 0.999;
-    }    
+        player.dir *= 0.9999;
+    }
 
     if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift)) {
         moveSpeed = glbl.runSpeed;
@@ -75,15 +83,15 @@ void playerInput(sf::RenderWindow &window, World& world, Player &player, double 
     sf::Vector2i currentMousePos = sf::Mouse::getPosition(window);
     sf::Vector2i middle(glbl.winW/2, glbl.winH/2);
     if (glbl.mouseLocked && currentMousePos != middle) {
-        rotateSpeed = (currentMousePos.x - middle.x) * 0.5;
+        rotateSpeed = (currentMousePos.x - middle.x) * 1.5;
         player.rotate(timeStep, rotateSpeed);
         sf::Mouse::setPosition(middle, window);
 
-        double crouchOffset = (currentMousePos.y - middle.y) * 0.5;
-        if ((glbl.crouch > -glbl.winH && crouchOffset > 0) ||
-            (glbl.crouch < 2*glbl.winH && crouchOffset < 0)) {
-            glbl.crouch -= crouchOffset;
-        }
+        // double crouchOffset = (currentMousePos.y - middle.y) * 0.5;
+        // if ((glbl.crouch > -glbl.winH && crouchOffset > 0) ||
+        //     (glbl.crouch < 2*glbl.winH && crouchOffset < 0)) {
+        //     glbl.crouch -= crouchOffset;
+        // }
     }
 }
 
@@ -91,7 +99,9 @@ double pythagorian(double a, double b) {
     return (double)sqrt(sqr(a) + sqr(b));
 }
 
-double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, double &wallPos, int &side, char &wallType) {
+
+
+RayInfo castRay(World &world, vec2d rayPos, vec2d rayDir) {
     vec2i mapPos((int)rayPos.x, (int)rayPos.y);
 
     double scaledY = rayDir.y/rayDir.x;
@@ -104,6 +114,10 @@ double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, doub
     vec2d step;
 
     int hit = 0;
+    int side = 0;
+    double finalDist = 0;
+    double wallX = 0;
+    char wallType = 0;
 
     // find step direction and initial nextSide.
     if (rayDir.x < 0) {
@@ -143,28 +157,30 @@ double castRay(World &world, vec2d rayPos, vec2d rayDir, double &finalDist, doub
 
     if (side == 0) {
         finalDist = std::abs((mapPos.x - rayPos.x + (1 - step.x) / 2.0) / rayDir.x);
-        wallPos = rayPos.y + ((mapPos.x - rayPos.x + (1 - step.x) / 2) / rayDir.x) * rayDir.y;
+        wallX = rayPos.y + ((mapPos.x - rayPos.x + (1 - step.x) / 2) / rayDir.x) * rayDir.y;
     }
     else {
         finalDist = std::abs((mapPos.y - rayPos.y + (1 - step.y) / 2.0) / rayDir.y);
-        wallPos = rayPos.x + ((mapPos.y - rayPos.y + (1 - step.y) / 2) / rayDir.y) * rayDir.x;
+        wallX = rayPos.x + ((mapPos.y - rayPos.y + (1 - step.y) / 2) / rayDir.y) * rayDir.x;
     }
 
-    wallPos -= floor(wallPos);
+    wallX -= floor(wallX);
+
+    return RayInfo(finalDist, wallX, side, wallType);
 }
 
-void drawColumn(sf::RenderWindow &window, double distance, int side, int column, double wallPos, char wallType) {
+void drawColumn(sf::RenderWindow &window, int column, RayInfo ray) {
     
-    int textureNum = (int)(wallType - '0');
+    int textureNum = (int)(ray.wallType - '0');
 
-    int texX = (int)(wallPos * (double)glbl.texW);
-    int height = std::abs(glbl.winH / distance);
+    int texX = (int)(ray.wallX * (double)glbl.texW);
+    int height = std::abs(glbl.winH / ray.length);
 
     sf::Sprite bar(wolfTextures, sf::IntRect((textureNum*glbl.texW)+texX,0,1,glbl.texH));
-    bar.scale(sf::Vector2f(glbl.columnWidth, (double)glbl.winH/(glbl.texH*distance)));
+    bar.scale(sf::Vector2f(glbl.columnWidth, (double)glbl.winH/(glbl.texH*ray.length)));
     bar.setPosition(sf::Vector2f(column, glbl.crouch - height/2));
 
-    if (side == 1) {
+    if (ray.side == 1) {
         bar.setColor(sf::Color(165, 165, 165));
     }
 
@@ -179,14 +195,9 @@ void castRays(sf::RenderWindow &window, World& world, Player player) {
         vec2d rayPos = player.pos;
         vec2d rayDir(player.dir.x + player.camPlane.x * camColumn,
                      player.dir.y + player.camPlane.y * camColumn);
-
-        double distance;
-        double wallPos;
-        int side;
-        char wallType;
         
-        castRay(world, rayPos, rayDir, distance, wallPos, side, wallType);
-        drawColumn(window, distance, side, col, wallPos, wallType);
+        RayInfo r = castRay(world, rayPos, rayDir);
+        drawColumn(window, col, r);
     }
 }
 
@@ -259,6 +270,23 @@ double averageStep(std::deque<double> &lastFrames, double timeStep) {
     return average;
 }
 
+void drawScene(sf::RenderWindow& window, World& world, Player& player) {
+    window.clear(sf::Color(135, 206, 235));
+    drawGround(window);
+    castRays(window, world, player);
+    drawCrossheir(window);
+    window.display();
+}
+
+// void gameLoop() {
+
+//     while (window.isOpen()) {
+//         handleEvents();
+//         playerInput();
+//         drawScene();
+//     }
+// }
+
 int main()
 {    
     /*
@@ -274,8 +302,8 @@ int main()
 
     glbl.winW = 960;
     glbl.winH = 540;
-    glbl.texW = 8;
-    glbl.texH = 8;
+    glbl.texW = 16;
+    glbl.texH = 16;
     glbl.mouseLocked = false;
     glbl.crouch = glbl.winH/2;
     sf::RenderWindow window(sf::VideoMode(glbl.winW, glbl.winH, 32),
@@ -294,17 +322,13 @@ int main()
     std::deque<double> timeSteps;
     sf::Event event;
 
-    wolfTextures.loadFromFile("../assets/textures/16bittextures.png");
+    wolfTextures.loadFromFile("../assets/textures/walltextures.png");
 
     while (window.isOpen())
     {   
         handleEvents(window, event, world, player);
         double timeStep = averageStep(timeSteps, gameClock.restart().asSeconds());
         playerInput(window, world, player, timeStep);
-        window.clear(sf::Color(135, 206, 235));
-        drawGround(window);
-        castRays(window, world, player);
-        drawCrossheir(window);
-        window.display();
+        drawScene(window, world, player);
     }
 }

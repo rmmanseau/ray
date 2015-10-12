@@ -8,7 +8,7 @@
   StartY:          1.5
   FOV:             100
   MaxBrightness:   155
-  RenderDistance:  10000
+  RenderDistance:  5
   ShadowSide:      0
   ShadowDarkness:  .7
   SelectedMap:     4
